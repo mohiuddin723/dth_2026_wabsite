@@ -1,41 +1,48 @@
-// You do not need to change this file.
-// It reads the page name from the address (index.html?page=page_two),
-// loads pages/page_two.md, shows it on the page, and counts its characters.
-
-const pageName = new URLSearchParams(window.location.search).get("page") || "page_one";
-const file = "./pages/" + pageName + ".md";
-
-// Give the page an id with its name, so style.css can style one page, e.g. #page_two h2 { ... }
-document.body.id = pageName;
-
-const content = document.getElementById("content");
-const charCount = document.getElementById("charCount");
-
-fetch(file)
-  .then((response) => {
-    if (!response.ok) {
-      throw new Error("the file does not exist");
-    }
+(() => {
+  const pages = ['page_one', 'page_two', 'page_three'];
+  const names = ['Advantages', 'Disadvantages', 'Project evaluation'];
+  const requested = new URLSearchParams(location.search).get('page');
+  const page = pages.includes(requested) ? requested : 'page_one';
+  const index = pages.indexOf(page);
+  const content = document.getElementById('content');
+  const count = text => text.replace(/\s+/g, ' ').trim().length;
+  function parse(md) {
+    const box = document.createElement('div');
+    box.innerHTML = marked.parse(md);
+    return box;
+  }
+  function chars(md) {
+    const box = parse(md.split(/^## References\s*$/m)[0]); box.querySelector('h1')?.remove();
+    return count(box.textContent);
+  }
+  async function read(name) {
+    if (location.protocol === 'file:') return window.localArticles[name];
+    const response = await fetch('./pages/' + name + '.md');
+    if (!response.ok) throw new Error('The article could not be loaded. Please try again.');
     return response.text();
-  })
-  .then((markdown) => {
-    content.innerHTML = marked.parse(markdown);
-
-    // The first # heading in the markdown becomes the banner heading and the tab title.
-    const heading = content.querySelector("h1");
-    if (heading) {
-      document.querySelector("header h1").textContent = heading.textContent;
-      document.title = heading.textContent;
-      heading.remove();
+  }
+  document.body.id = page;
+  document.querySelector(`[data-page="${page}"]`).setAttribute('aria-current', 'page');
+  document.getElementById('pageNumber').textContent = `0${index + 1} / 03`;
+  read(page).then(md => {
+    const box = parse(md);
+    document.title = (box.querySelector('h1')?.textContent || names[index]) + ' | Open Source';
+    const ref = [...box.querySelectorAll('h2')].find(el => el.textContent === 'References');
+    if (ref) {
+      const section = document.createElement('section'); section.className = 'references';
+      section.setAttribute('aria-label', 'References');
+      box.insertBefore(section, ref);
+      let next = ref;
+      while (next) { const after = next.nextSibling; section.appendChild(next); next = after; }
     }
-
-    charCount.textContent = countCharacters(content.textContent) + " characters";
-  })
-  .catch((error) => {
-    content.textContent = "Could not load " + file + ": " + error.message;
-  });
-
-// Counts the characters a reader sees, including spaces, but not the markdown symbols.
-function countCharacters(text) {
-  return text.replace(/\s+/g, " ").trim().length;
-}
+    content.replaceChildren(...box.childNodes); content.setAttribute('aria-busy', 'false');
+    document.getElementById('charCount').textContent = `${chars(md).toLocaleString('en-GB')} article characters`;
+  }).catch(error => {content.textContent = error.message;content.setAttribute('aria-busy','false');});
+  Promise.all(pages.map(read)).then(texts => {
+    document.getElementById('totalCount').textContent = `${texts.reduce((n, md) => n + chars(md), 0).toLocaleString('en-GB')} article characters in total · references excluded`;
+  }).catch(() => {});
+  const steps = document.getElementById('pageSteps');
+  if (index > 0) steps.innerHTML += `<a href="./index.html?page=${pages[index-1]}">← ${names[index-1]}</a>`;
+  if (index < 2) steps.innerHTML += `<a href="./index.html?page=${pages[index+1]}">${names[index+1]} →</a>`;
+  else steps.innerHTML += '<a href="#main">Back to top ↑</a>';
+})();
