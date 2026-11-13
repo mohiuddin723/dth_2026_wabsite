@@ -1,48 +1,38 @@
-(() => {
-  const pages = ['page_one', 'page_two', 'page_three'];
-  const names = ['Advantages', 'Disadvantages', 'Project evaluation'];
-  const requested = new URLSearchParams(location.search).get('page');
-  const page = pages.includes(requested) ? requested : 'page_one';
-  const index = pages.indexOf(page);
-  const content = document.getElementById('content');
-  const count = text => text.replace(/\s+/g, ' ').trim().length;
-  function parse(md) {
-    const box = document.createElement('div');
-    box.innerHTML = marked.parse(md);
-    return box;
-  }
-  function chars(md) {
-    const box = parse(md.split(/^## References\s*$/m)[0]); box.querySelector('h1')?.remove();
-    return count(box.textContent);
-  }
-  async function read(name) {
-    if (location.protocol === 'file:') return window.localArticles[name];
-    const response = await fetch('./pages/' + name + '.md');
-    if (!response.ok) throw new Error('The article could not be loaded. Please try again.');
+// Read the page name from the address and load its Markdown file.
+const allowedPages = ["page_one", "page_two", "page_three"];
+const requestedPage = new URLSearchParams(window.location.search).get("page");
+const pageName = allowedPages.includes(requestedPage) ? requestedPage : "page_one";
+const content = document.getElementById("content");
+const charCount = document.getElementById("charCount");
+document.body.id = pageName;
+
+const currentLink = document.querySelector('nav a[href="./index.html?page=' + pageName + '"]');
+currentLink.setAttribute("aria-current", "page");
+
+fetch("./pages/" + pageName + ".md")
+  .then((response) => {
+    if (!response.ok) throw new Error("The article file could not be found.");
     return response.text();
-  }
-  document.body.id = page;
-  document.querySelector(`[data-page="${page}"]`).setAttribute('aria-current', 'page');
-  document.getElementById('pageNumber').textContent = `0${index + 1} / 03`;
-  read(page).then(md => {
-    const box = parse(md);
-    document.title = (box.querySelector('h1')?.textContent || names[index]) + ' | Open Source';
-    const ref = [...box.querySelectorAll('h2')].find(el => el.textContent === 'References');
-    if (ref) {
-      const section = document.createElement('section'); section.className = 'references';
-      section.setAttribute('aria-label', 'References');
-      box.insertBefore(section, ref);
-      let next = ref;
-      while (next) { const after = next.nextSibling; section.appendChild(next); next = after; }
+  })
+  .then((markdown) => {
+    content.innerHTML = marked.parse(markdown);
+    const heading = content.querySelector("h1");
+    if (heading) {
+      document.querySelector("header h1").textContent = heading.textContent;
+      document.title = heading.textContent;
+      heading.remove();
     }
-    content.replaceChildren(...box.childNodes); content.setAttribute('aria-busy', 'false');
-    document.getElementById('charCount').textContent = `${chars(md).toLocaleString('en-GB')} article characters`;
-  }).catch(error => {content.textContent = error.message;content.setAttribute('aria-busy','false');});
-  Promise.all(pages.map(read)).then(texts => {
-    document.getElementById('totalCount').textContent = `${texts.reduce((n, md) => n + chars(md), 0).toLocaleString('en-GB')} article characters in total · references excluded`;
-  }).catch(() => {});
-  const steps = document.getElementById('pageSteps');
-  if (index > 0) steps.innerHTML += `<a href="./index.html?page=${pages[index-1]}">← ${names[index-1]}</a>`;
-  if (index < 2) steps.innerHTML += `<a href="./index.html?page=${pages[index+1]}">${names[index+1]} →</a>`;
-  else steps.innerHTML += '<a href="#main">Back to top ↑</a>';
-})();
+
+    // Count article text without the main title or reference list.
+    const article = document.createElement("div");
+    article.innerHTML = marked.parse(markdown.split(/^## References\s*$/m)[0]);
+    const title = article.querySelector("h1");
+    if (title) title.remove();
+    const characters = article.textContent.replace(/\s+/g, " ").trim().length;
+    charCount.textContent = characters.toLocaleString("en-GB") + " characters, excluding title and references";
+  })
+  .catch((error) => {
+    content.textContent = window.location.protocol === "file:"
+      ? "Open the published GitHub Pages website to read the articles, or use a local web server."
+      : error.message;
+  });
