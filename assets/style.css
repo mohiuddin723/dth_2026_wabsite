@@ -21,3 +21,7 @@ h2 { font-size: 21px; margin-top: 28px; }
 p { margin: 16px 0; }
 #charCount { color: #555; font-size: 14px; }
 footer { border-top: 1px solid #ccc; margin-top: 32px; padding: 12px 0; font-size: 14px; }
+#totalCount {
+  align-self: center;
+  margin: 0;
+}
